@@ -11,22 +11,22 @@ import Photos
 
 class ImageItemRenderer: UICollectionViewCell, PHPhotoLibraryChangeObserver
 {
-    let label = UILabel(frame: CGRectZero)
-    let imageView = UIImageView(frame: CGRectZero)
+    let label = UILabel(frame: CGRect.zero)
+    let imageView = UIImageView(frame: CGRect.zero)
     let blurOverlay = UIVisualEffectView(effect: UIBlurEffect())
     
-    let manager = PHImageManager.defaultManager()
-    let deliveryOptions = PHImageRequestOptionsDeliveryMode.Opportunistic
+    let manager = PHImageManager.default()
+    let deliveryOptions = PHImageRequestOptionsDeliveryMode.opportunistic
     let requestOptions = PHImageRequestOptions()
     
-    let priority = DISPATCH_QUEUE_PRIORITY_DEFAULT
+    let priority = DispatchQueue.GlobalAttributes.qosDefault
     
     override init(frame: CGRect)
     {
         super.init(frame: frame)
         
         requestOptions.deliveryMode = deliveryOptions
-        requestOptions.resizeMode = PHImageRequestOptionsResizeMode.Exact
+        requestOptions.resizeMode = PHImageRequestOptionsResizeMode.exact
         
         contentView.layer.cornerRadius = 5
         contentView.layer.masksToBounds = true
@@ -34,17 +34,17 @@ class ImageItemRenderer: UICollectionViewCell, PHPhotoLibraryChangeObserver
         label.numberOfLines = 0
   
         label.adjustsFontSizeToFitWidth = true
-        label.textAlignment = NSTextAlignment.Center
+        label.textAlignment = NSTextAlignment.center
         
         contentView.addSubview(imageView)
         contentView.addSubview(blurOverlay)
         contentView.addSubview(label)
         
-        layer.borderColor = UIColor.darkGrayColor().CGColor
+        layer.borderColor = UIColor.darkGray().cgColor
         layer.borderWidth = 1
         layer.cornerRadius = 5
         
-        PHPhotoLibrary.sharedPhotoLibrary().registerChangeObserver(self)
+        PHPhotoLibrary.shared().register(self)
     }
     
     override func layoutSubviews()
@@ -59,7 +59,7 @@ class ImageItemRenderer: UICollectionViewCell, PHPhotoLibraryChangeObserver
     
     deinit
     {
-        PHPhotoLibrary.sharedPhotoLibrary().unregisterChangeObserver(self)
+        PHPhotoLibrary.shared().unregisterChangeObserver(self)
     }
     
     var asset: PHAsset?
@@ -68,12 +68,12 @@ class ImageItemRenderer: UICollectionViewCell, PHPhotoLibraryChangeObserver
         {
             if let asset = asset
             {
-                dispatch_async(dispatch_get_global_queue(priority, 0))
+                DispatchQueue.global(attributes: priority).async
                 {
                     self.setLabel()
-                    self.manager.requestImageForAsset(asset,
+                    self.manager.requestImage(for: asset,
                         targetSize: self.frame.size,
-                        contentMode: PHImageContentMode.AspectFill,
+                        contentMode: PHImageContentMode.aspectFill,
                         options: self.requestOptions,
                         resultHandler: self.requestResultHandler)
                 }
@@ -85,18 +85,18 @@ class ImageItemRenderer: UICollectionViewCell, PHPhotoLibraryChangeObserver
     {
         if let asset = asset, creationDate = asset.creationDate
         {
-            let text = (asset.favorite ? "★ " : "") + NSDateFormatter.localizedStringFromDate(creationDate, dateStyle: NSDateFormatterStyle.MediumStyle, timeStyle: NSDateFormatterStyle.NoStyle)
+            let text = (asset.isFavorite ? "★ " : "") + DateFormatter.localizedString(from: creationDate, dateStyle: DateFormatter.Style.medium, timeStyle: DateFormatter.Style.none)
             
             PhotoBrowser.executeInMainQueue({self.label.text = text})
         }
     }
     
-    func photoLibraryDidChange(changeInstance: PHChange)
+    func photoLibraryDidChange(_ changeInstance: PHChange)
     {
-        dispatch_async(dispatch_get_main_queue(), { self.setLabel() })
+        DispatchQueue.main.async(execute: { self.setLabel() })
     }
 
-    func requestResultHandler (image: UIImage?, properties: [NSObject: AnyObject]?) -> Void
+    func requestResultHandler (_ image: UIImage?, properties: [NSObject: AnyObject]?) -> Void
     {
         PhotoBrowser.executeInMainQueue({self.imageView.image = image})
     }

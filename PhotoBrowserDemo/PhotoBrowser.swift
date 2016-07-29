@@ -13,19 +13,19 @@ import Photos
 
 class PhotoBrowser: UIViewController
 {
-    let manager = PHImageManager.defaultManager()
+    let manager = PHImageManager.default()
     let requestOptions = PHImageRequestOptions()
 
-    var touchedCell: (cell: UICollectionViewCell, indexPath: NSIndexPath)?
+    var touchedCell: (cell: UICollectionViewCell, indexPath: IndexPath)?
     var collectionViewWidget: UICollectionView!
     var segmentedControl: UISegmentedControl!
     let blurOverlay = UIVisualEffectView(effect: UIBlurEffect())
-    let background = UIView(frame: CGRectZero)
+    let background = UIView(frame: CGRect.zero)
     let activityIndicator = ActivityIndicator()
     
     var photoBrowserSelectedSegmentIndex = 0
 
-    var assetCollections: PHFetchResult!
+    var assetCollections: PHFetchResult<PHAssetCollection>!
     var segmentedControlItems = [String]()
     var contentOffsets = [CGPoint]()
     
@@ -42,9 +42,9 @@ class PhotoBrowser: UIViewController
         
         self.returnImageSize = returnImageSize
         
-        requestOptions.deliveryMode = PHImageRequestOptionsDeliveryMode.HighQualityFormat
-        requestOptions.resizeMode = PHImageRequestOptionsResizeMode.Exact
-        requestOptions.networkAccessAllowed = true
+        requestOptions.deliveryMode = PHImageRequestOptionsDeliveryMode.highQualityFormat
+        requestOptions.resizeMode = PHImageRequestOptionsResizeMode.exact
+        requestOptions.isNetworkAccessAllowed = true
         requestOptions.progressHandler = {
             (value: Double, _: NSError?, _ : UnsafeMutablePointer<ObjCBool>, _ : [NSObject : AnyObject]?) in
             self.activityIndicator.updateProgress(value)
@@ -58,18 +58,18 @@ class PhotoBrowser: UIViewController
     
     func launch()
     {
-        if let viewController = UIApplication.sharedApplication().keyWindow!.rootViewController
+        if let viewController = UIApplication.shared().keyWindow!.rootViewController
         {
-            modalPresentationStyle = UIModalPresentationStyle.OverFullScreen
-            modalTransitionStyle = UIModalTransitionStyle.CrossDissolve
+            modalPresentationStyle = UIModalPresentationStyle.overFullScreen
+            modalTransitionStyle = UIModalTransitionStyle.crossDissolve
             
-            viewController.presentViewController(self, animated: true, completion: nil)
+            viewController.present(self, animated: true, completion: nil)
             
             activityIndicator.stopAnimating()
         }
     }
     
-    var assets: PHFetchResult!
+    var assets: PHFetchResult<PHAsset>!
     {
         didSet
         {
@@ -80,13 +80,13 @@ class PhotoBrowser: UIViewController
             
             if oldValue.count - assets.count == 1
             {
-                collectionViewWidget.deleteItemsAtIndexPaths([touchedCell!.indexPath])
+                collectionViewWidget.deleteItems(at: [touchedCell!.indexPath])
                 
                 collectionViewWidget.reloadData()
             }
             else if oldValue.count != assets.count
             {
-                UIView.animateWithDuration(PhotoBrowserConstants.animationDuration,
+                UIView.animate(withDuration: PhotoBrowserConstants.animationDuration,
                     animations:
                     {
                         self.collectionViewWidget.alpha = 0
@@ -96,7 +96,7 @@ class PhotoBrowser: UIViewController
                         (value: Bool) in
                         self.collectionViewWidget.reloadData()
                         self.collectionViewWidget.contentOffset = self.contentOffsets[self.segmentedControl.selectedSegmentIndex]
-                        UIView.animateWithDuration(PhotoBrowserConstants.animationDuration, animations: { self.collectionViewWidget.alpha = 1.0 })
+                        UIView.animate(withDuration: PhotoBrowserConstants.animationDuration, animations: { self.collectionViewWidget.alpha = 1.0 })
                     })
             }
             else
@@ -110,9 +110,9 @@ class PhotoBrowser: UIViewController
     {
         super.viewDidLoad()
         
-        PHPhotoLibrary.sharedPhotoLibrary().registerChangeObserver(self)
+        PHPhotoLibrary.shared().register(self)
         
-        if PHPhotoLibrary.authorizationStatus() == PHAuthorizationStatus.Authorized
+        if PHPhotoLibrary.authorizationStatus() == PHAuthorizationStatus.authorized
         {
             createUserInterface()
         }
@@ -122,36 +122,34 @@ class PhotoBrowser: UIViewController
         }
     }
     
-    func requestAuthorizationHandler(status: PHAuthorizationStatus)
+    func requestAuthorizationHandler(_ status: PHAuthorizationStatus)
     {
-        if PHPhotoLibrary.authorizationStatus() == PHAuthorizationStatus.Authorized
+        if PHPhotoLibrary.authorizationStatus() == PHAuthorizationStatus.authorized
         {
             PhotoBrowser.executeInMainQueue({ self.createUserInterface() })
         }
         else
         {
-            PhotoBrowser.executeInMainQueue({ self.dismissViewControllerAnimated(true, completion: nil) })
+            PhotoBrowser.executeInMainQueue({ self.dismiss(animated: true, completion: nil) })
         }
     }
     
     func createUserInterface()
     {
-        assetCollections = PHAssetCollection.fetchAssetCollectionsWithType(PHAssetCollectionType.SmartAlbum, subtype: PHAssetCollectionSubtype.AlbumRegular, options: nil)
+        assetCollections = PHAssetCollection.fetchAssetCollections(with: PHAssetCollectionType.smartAlbum, subtype: PHAssetCollectionSubtype.albumRegular, options: nil)
         
         segmentedControlItems = [String]()
         
-        for var i = 0 ; i < assetCollections.count ; i++
+        for i in 0  ..< assetCollections.count 
         {
-            let assetCollection = assetCollections[i] as? PHAssetCollection
-            
             let fetchOptions = PHFetchOptions()
-            fetchOptions.predicate = NSPredicate(format: "mediaType = %i", PHAssetMediaType.Image.rawValue)
+            fetchOptions.predicate = Predicate(format: "mediaType = %i", PHAssetMediaType.image.rawValue)
             
-            let assetsInCollection  = PHAsset.fetchAssetsInAssetCollection(assetCollection!, options: fetchOptions)
+            let assetsInCollection  = PHAsset.fetchAssets(in: assetCollections[i], options: fetchOptions)
             
-            if assetsInCollection.count > 0 || assetCollection?.localizedTitle == "Favorites"
+            if assetsInCollection.count > 0 || assetCollections[i].localizedTitle == "Favorites"
             {
-                if let localizedTitle = assetCollection?.localizedTitle
+                if let localizedTitle = assetCollections[i].localizedTitle
                 {
                     segmentedControlItems.append(localizedTitle)
                     
@@ -160,38 +158,38 @@ class PhotoBrowser: UIViewController
             }
         }
         
-        segmentedControlItems = segmentedControlItems.sort { $0 < $1 }
+        segmentedControlItems = segmentedControlItems.sorted { $0 < $1 }
         
         segmentedControl = UISegmentedControl(items: segmentedControlItems)
         segmentedControl.selectedSegmentIndex = photoBrowserSelectedSegmentIndex
-        segmentedControl.addTarget(self, action: "segmentedControlChangeHandler", forControlEvents: UIControlEvents.ValueChanged)
+        segmentedControl.addTarget(self, action: #selector(PhotoBrowser.segmentedControlChangeHandler), for: UIControlEvents.valueChanged)
         
         let layout = UICollectionViewFlowLayout()
-        layout.scrollDirection = .Vertical
+        layout.scrollDirection = .vertical
         layout.itemSize = PhotoBrowserConstants.thumbnailSize
         layout.minimumLineSpacing = 30
         layout.sectionInset = UIEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
         
-        collectionViewWidget = UICollectionView(frame: CGRectZero, collectionViewLayout: layout)
+        collectionViewWidget = UICollectionView(frame: CGRect.zero, collectionViewLayout: layout)
         
-        collectionViewWidget.backgroundColor = UIColor.clearColor()
+        collectionViewWidget.backgroundColor = UIColor.clear()
         
         collectionViewWidget.delegate = self
         collectionViewWidget.dataSource = self
-        collectionViewWidget.registerClass(ImageItemRenderer.self, forCellWithReuseIdentifier: "Cell")
+        collectionViewWidget.register(ImageItemRenderer.self, forCellWithReuseIdentifier: "Cell")
         collectionViewWidget.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
    
-    if UIApplication.sharedApplication().keyWindow?.traitCollection.forceTouchCapability == UIForceTouchCapability.Available
+    if UIApplication.shared().keyWindow?.traitCollection.forceTouchCapability == UIForceTouchCapability.available
     {
-        registerForPreviewingWithDelegate(self, sourceView: view)
+        registerForPreviewing(with: self, sourceView: view)
     }
     else
     {
-        let longPress = UILongPressGestureRecognizer(target: self, action: "longPressHandler:")
+        let longPress = UILongPressGestureRecognizer(target: self, action: #selector(PhotoBrowser.longPressHandler(_:)))
         collectionViewWidget.addGestureRecognizer(longPress)
     }
             
-        background.layer.borderColor = UIColor.darkGrayColor().CGColor
+        background.layer.borderColor = UIColor.darkGray().cgColor
         background.layer.borderWidth = 1
         background.layer.cornerRadius = 5
         background.layer.masksToBounds = true
@@ -204,7 +202,7 @@ class PhotoBrowser: UIViewController
         
         view.backgroundColor = UIColor(white: 0.15, alpha: 0.85)
         
-        activityIndicator.frame = CGRect(origin: CGPointZero, size: view.frame.size)
+        activityIndicator.frame = CGRect(origin: CGPoint.zero, size: view.frame.size)
         view.addSubview(activityIndicator)
         
         segmentedControlChangeHandler()
@@ -214,14 +212,14 @@ class PhotoBrowser: UIViewController
     
     // MARK: User interaction handling
     
-    override func touchesBegan(touches: Set<UITouch>, withEvent event: UIEvent?)
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?)
     {
-        super.touchesBegan(touches, withEvent: event)
+        super.touchesBegan(touches, with: event)
         
-        if let locationInView = touches.first?.locationInView(view) where
+        if let locationInView = touches.first?.location(in: view) where
             !background.frame.contains(locationInView)
         {
-            dismissViewControllerAnimated(true, completion: nil)
+            dismiss(animated: true, completion: nil)
         }
     }
     
@@ -232,57 +230,54 @@ class PhotoBrowser: UIViewController
         photoBrowserSelectedSegmentIndex = segmentedControl.selectedSegmentIndex
         
         let options = PHFetchOptions()
-        options.sortDescriptors = [ NSSortDescriptor(key: "creationDate", ascending: false) ]
-        options.predicate =  NSPredicate(format: "mediaType = %i", PHAssetMediaType.Image.rawValue)
+        options.sortDescriptors = [ SortDescriptor(key: "creationDate", ascending: false) ]
+        options.predicate =  Predicate(format: "mediaType = %i", PHAssetMediaType.image.rawValue)
         
-        for var i = 0; i < assetCollections.count; i++
+        for i in 0 ..< assetCollections.count
         {
             if segmentedControlItems[photoBrowserSelectedSegmentIndex] == assetCollections[i].localizedTitle
             {
-                if let assetCollection = assetCollections[i] as? PHAssetCollection
-                {
-                    assets = PHAsset.fetchAssetsInAssetCollection(assetCollection, options: options)
-                    
-                    return
-                }
+                assets = PHAsset.fetchAssets(in: assetCollections[i], options: options)
+                
+                return
             }
         }
         
         selectedAsset = nil
     }
     
-    func longPressHandler(recognizer: UILongPressGestureRecognizer)
+    func longPressHandler(_ recognizer: UILongPressGestureRecognizer)
     {
         guard let touchedCell = touchedCell,
-            asset = assets[touchedCell.indexPath.row] as? PHAsset where
-            recognizer.state == UIGestureRecognizerState.Began else
+            asset = assets[(touchedCell.indexPath as NSIndexPath).row] as? PHAsset where
+            recognizer.state == UIGestureRecognizerState.began else
         {
             return
         }
         
-        let contextMenuController = UIAlertController(title: nil, message: nil, preferredStyle: UIAlertControllerStyle.ActionSheet)
-        let toggleFavouriteAction = UIAlertAction(title: asset.favorite ? "Remove Favourite" : "Make Favourite", style: UIAlertActionStyle.Default, handler: toggleFavourite)
+        let contextMenuController = UIAlertController(title: nil, message: nil, preferredStyle: UIAlertControllerStyle.actionSheet)
+        let toggleFavouriteAction = UIAlertAction(title: asset.isFavorite ? "Remove Favourite" : "Make Favourite", style: UIAlertActionStyle.default, handler: toggleFavourite)
         
         contextMenuController.addAction(toggleFavouriteAction)
         
         if let popoverPresentationController = contextMenuController.popoverPresentationController
         {
-            popoverPresentationController.sourceRect = collectionViewWidget.convertRect(touchedCell.cell.frame, toView: self.view)
+            popoverPresentationController.sourceRect = collectionViewWidget.convert(touchedCell.cell.frame, to: self.view)
             
             popoverPresentationController.sourceView = view
         }
         
-        presentViewController(contextMenuController, animated: true, completion: nil)
+        present(contextMenuController, animated: true, completion: nil)
     }
     
     func toggleFavourite(_: UIAlertAction!) -> Void
     {
-        if let touchedCell = touchedCell, targetEntity = assets[touchedCell.indexPath.row] as? PHAsset
+        if let touchedCell = touchedCell, targetEntity = assets[(touchedCell.indexPath as NSIndexPath).row] as? PHAsset
         {
-            PHPhotoLibrary.sharedPhotoLibrary().performChanges(
+            PHPhotoLibrary.shared().performChanges(
                 {
-                    let changeRequest = PHAssetChangeRequest(forAsset: targetEntity)
-                    changeRequest.favorite = !targetEntity.favorite
+                    let changeRequest = PHAssetChangeRequest(for: targetEntity)
+                    changeRequest.isFavorite = !targetEntity.isFavorite
                 },
                 completionHandler: nil)
         }
@@ -290,20 +285,20 @@ class PhotoBrowser: UIViewController
     
     // MARK: Image management
     
-    func requestImageForAsset(asset: PHAsset)
+    func requestImageForAsset(_ asset: PHAsset)
     {
         activityIndicator.startAnimating()
         
         selectedAsset = asset
         
-        manager.requestImageForAsset(asset,
+        manager.requestImage(for: asset,
             targetSize: returnImageSize,
-            contentMode: PHImageContentMode.AspectFill,
+            contentMode: PHImageContentMode.aspectFill,
             options: requestOptions,
             resultHandler: imageRequestResultHandler)
     }
     
-    func imageRequestResultHandler(image: UIImage?, properties: [NSObject: AnyObject]?)
+    func imageRequestResultHandler(_ image: UIImage?, properties: [NSObject: AnyObject]?)
     {
         if let delegate = delegate, image = image, selectedAssetLocalIdentifier = selectedAsset?.localIdentifier
         {
@@ -316,7 +311,7 @@ class PhotoBrowser: UIViewController
         
         activityIndicator.stopAnimating()
         selectedAsset = nil
-        dismissViewControllerAnimated(true, completion: nil)
+        dismiss(animated: true, completion: nil)
     }
 
     // MARK: System Layout
@@ -336,12 +331,12 @@ class PhotoBrowser: UIViewController
     
     deinit
     {
-        PHPhotoLibrary.sharedPhotoLibrary().unregisterChangeObserver(self)
+        PHPhotoLibrary.shared().unregisterChangeObserver(self)
     }
     
-    static func executeInMainQueue(function: () -> Void)
+    static func executeInMainQueue(_ function: () -> Void)
     {
-        dispatch_async(dispatch_get_main_queue(), function)
+        DispatchQueue.main.async(execute: function)
     }
 }
 
@@ -349,16 +344,25 @@ class PhotoBrowser: UIViewController
 
 extension PhotoBrowser: PHPhotoLibraryChangeObserver
 {
-    func photoLibraryDidChange(changeInstance: PHChange)
+    func photoLibraryDidChange(_ changeInstance: PHChange)
     {
         guard let assets = assets else
         {
             return
         }
         
-        if let changeDetails = changeInstance.changeDetailsForFetchResult(assets) where uiCreated
+        if let assetsAO = assets as? PHFetchResult<AnyObject>
         {
-            PhotoBrowser.executeInMainQueue{ self.assets = changeDetails.fetchResultAfterChanges }
+            if let changeDetails = changeInstance.changeDetails(for: assetsAO ) where uiCreated
+            {
+                PhotoBrowser.executeInMainQueue
+                {
+                    if let assetsAPH = changeDetails.fetchResultAfterChanges as? PHFetchResult<PHAsset>
+                    {
+                        self.assets = assetsAPH
+                    }
+                }
+            }
         }
     }
 }
@@ -367,7 +371,7 @@ extension PhotoBrowser: PHPhotoLibraryChangeObserver
 
 extension PhotoBrowser: UICollectionViewDataSource
 {
-    func collectionView(collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int
+    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int
     {
         return assets.count
     }
@@ -377,27 +381,37 @@ extension PhotoBrowser: UICollectionViewDataSource
 
 extension PhotoBrowser: UICollectionViewDelegate
 {
-    func collectionView(collectionView: UICollectionView, cellForItemAtIndexPath indexPath: NSIndexPath) -> UICollectionViewCell
+    @objc(collectionView:cellForItemAtIndexPath:) func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell
     {
-        let cell = collectionView.dequeueReusableCellWithReuseIdentifier("Cell", forIndexPath: indexPath) as! ImageItemRenderer
+        let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "Cell", for: indexPath) as! ImageItemRenderer
         
-        let asset = assets[indexPath.row] as! PHAsset
-        
-        cell.asset = asset;
+        cell.asset = assets[(indexPath as NSIndexPath).row]
         
         return cell
     }
     
-    func collectionView(collectionView: UICollectionView, didHighlightItemAtIndexPath indexPath: NSIndexPath)
+    func collectionView(_ collectionView: UICollectionView, didHighlightItemAt indexPath: IndexPath)
     {
-        touchedCell = (cell: self.collectionView(collectionViewWidget, cellForItemAtIndexPath: indexPath), indexPath: indexPath)
+        touchedCell = (cell: self.collectionView(collectionViewWidget, cellForItemAt: indexPath), indexPath: indexPath)
     }
     
-    func collectionView(collectionView: UICollectionView, didSelectItemAtIndexPath indexPath: NSIndexPath)
+    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath)
     {
-        if let asset = assets[indexPath.row] as? PHAsset
-        {
-            requestImageForAsset(asset)
+        requestImageForAsset(assets[(indexPath as NSIndexPath).row])
+    }
+    
+    
+    
+    override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
+        if let previousItem = context.previouslyFocusedView as? ImageItemRenderer {
+            UIView.animate(withDuration: 0.2, animations: { () -> Void in
+                previousItem.frame.size = PhotoBrowserConstants.thumbnailSize
+            })
+        }
+        if let nextItem = context.nextFocusedView as? ImageItemRenderer {
+            UIView.animate(withDuration: 0.2, animations: { () -> Void in
+                nextItem.frame.size = PhotoBrowserConstants.thumbnailHighlightSize
+            })
         }
     }
 }
@@ -406,10 +420,9 @@ extension PhotoBrowser: UICollectionViewDelegate
 
 extension PhotoBrowser: UIViewControllerPreviewingDelegate
 {
-    func previewingContext(previewingContext: UIViewControllerPreviewing, viewControllerForLocation location: CGPoint) -> UIViewController?
+    func previewingContext(_ previewingContext: UIViewControllerPreviewing, viewControllerForLocation location: CGPoint) -> UIViewController?
     {
-        guard let touchedCell = touchedCell,
-            asset = assets[touchedCell.indexPath.row] as? PHAsset else
+        guard let touchedCell = touchedCell else
         {
             return nil
         }
@@ -420,22 +433,21 @@ extension PhotoBrowser: UIViewControllerPreviewingDelegate
             width: previewSize,
             height: previewSize))
 
-        peekController.asset = asset
+        peekController.asset = assets[(touchedCell.indexPath as NSIndexPath).row]
         
         return peekController
     }
     
-    func previewingContext(previewingContext: UIViewControllerPreviewing, commitViewController viewControllerToCommit: UIViewController)
+    func previewingContext(_ previewingContext: UIViewControllerPreviewing, commit viewControllerToCommit: UIViewController)
     {
-        guard let touchedCell = touchedCell,
-            asset = assets[touchedCell.indexPath.row] as? PHAsset else
+        guard let touchedCell = touchedCell else
         {
-            dismissViewControllerAnimated(true, completion: nil)
+            dismiss(animated: true, completion: nil)
             
             return
         }
         
-        requestImageForAsset(asset)
+        requestImageForAsset(assets[(touchedCell.indexPath as NSIndexPath).row])
     }
 }
 
@@ -465,10 +477,10 @@ class PeekViewController: UIViewController
     {
         if let targetEntity = asset
         {
-            PHPhotoLibrary.sharedPhotoLibrary().performChanges(
+            PHPhotoLibrary.shared().performChanges(
                 {
-                    let changeRequest = PHAssetChangeRequest(forAsset: targetEntity)
-                    changeRequest.favorite = !targetEntity.favorite
+                    let changeRequest = PHAssetChangeRequest(for: targetEntity)
+                    changeRequest.isFavorite = !targetEntity.isFavorite
                 },
                 completionHandler: nil)
         }
@@ -476,8 +488,8 @@ class PeekViewController: UIViewController
     
     var previewActions: [UIPreviewActionItem]
     {
-        return [UIPreviewAction(title: asset!.favorite ? "Remove Favourite" : "Make Favourite",
-            style: UIPreviewActionStyle.Default,
+        return [UIPreviewAction(title: asset!.isFavorite ? "Remove Favourite" : "Make Favourite",
+            style: UIPreviewActionStyle.default,
             handler:
             {
                 (previewAction, viewController) in (viewController as? PeekViewController)?.toggleFavourite()
@@ -488,10 +500,7 @@ class PeekViewController: UIViewController
     {
         didSet
         {
-            if let asset = asset
-            {
-                itemRenderer.asset = asset;
-            }
+            itemRenderer.asset = asset
         }
     }
 }
@@ -500,7 +509,7 @@ class PeekViewController: UIViewController
 
 class ActivityIndicator: UIView
 {
-    let activityIndicator = UIActivityIndicatorView(activityIndicatorStyle: UIActivityIndicatorViewStyle.WhiteLarge)
+    let activityIndicator = UIActivityIndicatorView(activityIndicatorStyle: UIActivityIndicatorViewStyle.whiteLarge)
     let label = UILabel()
     
     override init(frame: CGRect)
@@ -511,8 +520,8 @@ class ActivityIndicator: UIView
         addSubview(label)
         
         backgroundColor = UIColor(white: 0.15, alpha: 0.85)
-        label.textColor = UIColor.whiteColor()
-        label.textAlignment = NSTextAlignment.Center
+        label.textColor = UIColor.white()
+        label.textAlignment = NSTextAlignment.center
         
         label.text = "Loading..."
         
@@ -521,7 +530,7 @@ class ActivityIndicator: UIView
 
     override func layoutSubviews()
     {
-        activityIndicator.frame = CGRect(origin: CGPointZero, size: frame.size)
+        activityIndicator.frame = CGRect(origin: CGPoint.zero, size: frame.size)
         
         label.frame = CGRect(x: 0,
             y: label.intrinsicContentSize().height,
@@ -529,7 +538,7 @@ class ActivityIndicator: UIView
             height: label.intrinsicContentSize().height)
     }
     
-    func updateProgress(value: Double)
+    func updateProgress(_ value: Double)
     {
         PhotoBrowser.executeInMainQueue
         {
@@ -541,7 +550,7 @@ class ActivityIndicator: UIView
     {
         activityIndicator.startAnimating()
         
-        NSTimer.scheduledTimerWithTimeInterval(0.25, target: self, selector: "show", userInfo: nil, repeats: false)
+        Timer.scheduledTimer(timeInterval: 0.25, target: self, selector: #selector(ActivityIndicator.show), userInfo: nil, repeats: false)
     }
     
     func show()
@@ -549,13 +558,13 @@ class ActivityIndicator: UIView
         PhotoBrowser.executeInMainQueue
         {
             self.label.text = "Loading..."
-            self.hidden = false
+            self.isHidden = false
         }
     }
     
     func stopAnimating()
     {
-        hidden = true
+        isHidden = true
         activityIndicator.stopAnimating()
     }
     
@@ -567,6 +576,7 @@ class ActivityIndicator: UIView
 
 struct PhotoBrowserConstants
 {
-    static let thumbnailSize = CGSize(width: 100, height: 100)
+    static let thumbnailSize = CGSize(width: 256, height: 256)
+    static let thumbnailHighlightSize = CGSize(width: 384, height: 384)
     static let animationDuration = 0.175
 }
