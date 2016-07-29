@@ -36,6 +36,9 @@ class ImageItemRenderer: UICollectionViewCell, PHPhotoLibraryChangeObserver
         label.adjustsFontSizeToFitWidth = true
         label.textAlignment = NSTextAlignment.center
         
+        imageView.adjustsImageWhenAncestorFocused = true
+        imageView.clipsToBounds = false
+        
         contentView.addSubview(imageView)
         contentView.addSubview(blurOverlay)
         contentView.addSubview(label)

@@ -69,6 +69,38 @@ class PhotoBrowser: UIViewController
         }
     }
     
+    var assetsByDate = [String : [PHAsset]]()
+    func updateAssetsByDate()
+    {
+        let formatter:DateFormatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        
+        if assets.count > 0
+        {
+            assetsByDate = [String : [PHAsset]]()
+            var assetsByDateUnsorted = [String : [PHAsset]]()
+            for i in 0..<assets.count
+            {
+                let asset = assets[i]
+                if let date = asset.creationDate
+                {
+                    let dateString = formatter.string(from: date) // DateFormatter.localizedString(from: date, dateStyle: DateFormatter.Style.medium, timeStyle: DateFormatter.Style.none)
+                    if assetsByDateUnsorted[dateString] == nil
+                    {
+                        assetsByDateUnsorted[dateString] = [PHAsset]()
+                        
+                    }
+                    assetsByDateUnsorted[dateString]!.append(asset)
+                }
+            }
+            for element in (assetsByDateUnsorted.sorted { $0.value.first?.creationDate < $1.value.first?.creationDate })
+            {
+                print(element.value.first?.creationDate)
+                assetsByDate[element.key] = element.value
+            }
+        }
+    }
+    
     var assets: PHFetchResult<PHAsset>!
     {
         didSet
@@ -80,12 +112,16 @@ class PhotoBrowser: UIViewController
             
             if oldValue.count - assets.count == 1
             {
+                updateAssetsByDate()
+                
                 collectionViewWidget.deleteItems(at: [touchedCell!.indexPath])
                 
                 collectionViewWidget.reloadData()
             }
             else if oldValue.count != assets.count
             {
+                updateAssetsByDate()
+                
                 UIView.animate(withDuration: PhotoBrowserConstants.animationDuration,
                     animations:
                     {
@@ -238,7 +274,7 @@ class PhotoBrowser: UIViewController
             if segmentedControlItems[photoBrowserSelectedSegmentIndex] == assetCollections[i].localizedTitle
             {
                 assets = PHAsset.fetchAssets(in: assetCollections[i], options: options)
-                
+                updateAssetsByDate()
                 return
             }
         }
@@ -371,9 +407,14 @@ extension PhotoBrowser: PHPhotoLibraryChangeObserver
 
 extension PhotoBrowser: UICollectionViewDataSource
 {
+    func numberOfSections(in collectionView: UICollectionView) -> Int
+    {
+        return assetsByDate.count
+    }
+    
     func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int
     {
-        return assets.count
+        return  assetsByDate[Array(assetsByDate.keys)[section]]!.count
     }
 }
 
@@ -385,7 +426,8 @@ extension PhotoBrowser: UICollectionViewDelegate
     {
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "Cell", for: indexPath) as! ImageItemRenderer
         
-        cell.asset = assets[(indexPath as NSIndexPath).row]
+//        let currentIndexPath = indexPath as NSIndexPath
+        cell.asset = assetsByDate[Array(assetsByDate.keys)[indexPath.section]]?[indexPath.row] // assets[currentIndexPath.row]
         
         return cell
     }
@@ -402,18 +444,20 @@ extension PhotoBrowser: UICollectionViewDelegate
     
     
     
-    override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
-        if let previousItem = context.previouslyFocusedView as? ImageItemRenderer {
-            UIView.animate(withDuration: 0.2, animations: { () -> Void in
-                previousItem.frame.size = PhotoBrowserConstants.thumbnailSize
-            })
-        }
-        if let nextItem = context.nextFocusedView as? ImageItemRenderer {
-            UIView.animate(withDuration: 0.2, animations: { () -> Void in
-                nextItem.frame.size = PhotoBrowserConstants.thumbnailHighlightSize
-            })
-        }
-    }
+//    override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
+//        if let previousItem = context.previouslyFocusedView as? ImageItemRenderer {
+//            UIView.animate(withDuration: 0.2, animations: { () -> Void in
+//                previousItem.frame.size = PhotoBrowserConstants.thumbnailSize
+//                previousItem.imageView.clipsToBounds = true
+//            })
+//        }
+//        if let nextItem = context.nextFocusedView as? ImageItemRenderer {
+//            UIView.animate(withDuration: 0.2, animations: { () -> Void in
+//                nextItem.frame.size = PhotoBrowserConstants.thumbnailHighlightSize
+//                nextItem.imageView.clipsToBounds = false
+//            })
+//        }
+//    }
 }
 
 // MARK:
